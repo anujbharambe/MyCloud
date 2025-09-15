@@ -118,7 +118,11 @@ def download_file(
 @app.get("/files")
 def list_files(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     db_files = db.query(DBFile).filter_by(owner_id=user.id).all()
-    files = [f.filename for f in db_files]
+    files = [
+        f.filename
+        for f in db_files
+        if os.path.exists(os.path.join(UPLOAD_DIR, f.filename))
+    ]
     return {"files": files}
 
 
