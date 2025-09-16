@@ -4,10 +4,12 @@ from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 import os
+from dotenv import load_dotenv
 from db import SessionLocal, User, File as DBFile, AccessLog
 from passlib.hash import bcrypt
 from sqlalchemy.orm import Session
 import datetime
+import google.generativeai as genai
 
 
 app = FastAPI()
@@ -24,6 +26,12 @@ app.add_middleware(
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
+# Load environment variables from .env
+load_dotenv()
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+if not GEMINI_API_KEY:
+    raise RuntimeError("GEMINI_API_KEY not found in environment. Please set it in .env.")
+genai.configure(api_key=GEMINI_API_KEY)
 
 def get_db():
     db = SessionLocal()
@@ -143,3 +151,71 @@ def delete_file(
     db.commit()
     log_access(db, user.username, filename, "delete")
     return {"detail": f"{filename} deleted"}
+
+
+def search_files_content(user, db, filenames=None):
+    import PyPDF2
+    query_files = db.query(DBFile).filter_by(owner_id=user.id)
+    if filenames:
+        query_files = query_files.filter(DBFile.filename.in_(filenames))
+    db_files = query_files.all()
+    results = []
+    for f in db_files:
+        file_path = os.path.join(UPLOAD_DIR, f.filename)
+        if os.path.exists(file_path):
+            content = ""
+            if f.filename.lower().endswith(".pdf"):
+                try:
+                    with open(file_path, "rb") as pdf_file:
+                        reader = PyPDF2.PdfReader(pdf_file)
+                        for page in reader.pages:
+                            content += page.extract_text() or ""
+                except Exception:
+                    continue
+            else:
+                try:
+                    with open(file_path, "r", encoding="utf-8", errors="ignore") as file:
+                        content = file.read()
+                except Exception:
+                    continue
+            results.append({"filename": f.filename, "content": content})
+    return results
+
+from fastapi import Body
+
+
+@app.post("/chatbot")
+async def chatbot(
+    request: dict = Body(...),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    query = request.get("query")
+    filenames = request.get("files")
+    if not query:
+        raise HTTPException(status_code=400, detail="Query required")
+
+    # Ensure filenames is always a list
+    if not filenames:
+        filenames = []
+    elif isinstance(filenames, str):
+        filenames = [filenames]
+
+    print(f"[DEBUG] Selected filenames: {filenames}")
+    files_data = search_files_content(user, db, filenames)
+    context = "\n\n".join(
+        [f"File: {f['filename']}\nContent:\n{f['content'][:2000]}" for f in files_data]
+    )
+    print("[DEBUG] files_data:", files_data)
+    print("[DEBUG] context sent to model:\n", context)
+    prompt = (
+        f"User asked: {query}\n"
+        f"Here are the user's files (may be partial):\n{context}\n"
+        "Answer the user's question using the files above if possible."
+    )
+
+    model = genai.GenerativeModel("gemini-2.5-pro")
+    response = model.generate_content(prompt)
+    answer = response.text if hasattr(response, "text") else str(response)
+
+    return {"response": answer}
