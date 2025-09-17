@@ -123,14 +123,28 @@ def download_file(
     return FileResponse(file_location, filename=filename)
 
 
+
+def classify_file(filename: str) -> str:
+    ext = filename.lower().split('.')[-1]
+    if ext in ["pdf", "doc", "docx"]:
+        return "document"
+    if ext in ["xls", "xlsx", "csv"]:
+        return "tabular"
+    if ext in ["jpg", "jpeg", "png", "gif", "bmp"]:
+        return "image"
+    return "other"
+
 @app.get("/files")
 def list_files(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     db_files = db.query(DBFile).filter_by(owner_id=user.id).all()
-    files = [
-        f.filename
-        for f in db_files
-        if os.path.exists(os.path.join(UPLOAD_DIR, f.filename))
-    ]
+    files = []
+    for f in db_files:
+        file_path = os.path.join(UPLOAD_DIR, f.filename)
+        if os.path.exists(file_path):
+            files.append({
+                "filename": f.filename,
+                "type": classify_file(f.filename)
+            })
     return {"files": files}
 
 

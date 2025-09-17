@@ -1,8 +1,12 @@
-import ChatbotWidget from "./ChatbotWidget";
+
+
+import React from "react";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import AuthGuard from "./auth-guard";
+import SidebarVisibility from "./SidebarVisibility";
+import ChatbotVisibility from "./ChatbotVisibility";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -27,8 +31,13 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <ChatbotWidget />
-        <AuthGuard>{children}</AuthGuard>
+        <ChatbotVisibility />
+        <div style={{ display: 'flex', minHeight: '100vh' }}>
+          <SidebarVisibility />
+          <div style={{ flex: 1 }}>
+            <AuthGuard>{children}</AuthGuard>
+          </div>
+        </div>
       </body>
     </html>
   );

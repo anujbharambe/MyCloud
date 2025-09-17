@@ -8,7 +8,7 @@ const BACKEND_URL = "http://localhost:8000";
 
 export default function Dashboard() {
   const fileInput = useRef<HTMLInputElement>(null);
-  const [files, setFiles] = useState<string[]>([]);
+  const [files, setFiles] = useState<{ filename: string; type: string }[]>([]);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [authVersion, setAuthVersion] = useState(0);
@@ -37,7 +37,7 @@ export default function Dashboard() {
       if (!res.ok) throw new Error("Failed to fetch files");
       const data = await res.json();
       setFiles(data.files || []);
-    } catch (e) {
+    } catch {
       setError("Failed to fetch files");
     }
   };
@@ -50,8 +50,8 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authVersion]);
 
-  const handleUpload = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleUpload = async (event: React.FormEvent) => {
+    event.preventDefault();
     if (!fileInput.current?.files?.length) return;
     setUploading(true);
     setError("");
@@ -66,9 +66,11 @@ export default function Dashboard() {
         },
       });
       if (!res.ok) throw new Error("Upload failed");
-      await fetchFiles();
-      if (fileInput.current) fileInput.current.value = "";
-    } catch (e) {
+  await fetchFiles();
+  if (fileInput.current) fileInput.current.value = "";
+  // Notify sidebar to refresh
+  window.dispatchEvent(new Event("mycloud-files-changed"));
+    } catch {
       setError("Upload failed");
     } finally {
       setUploading(false);
@@ -90,8 +92,10 @@ export default function Dashboard() {
         return;
       }
       // Remove the file from the UI immediately
-      setFiles((prev) => prev.filter((f) => f !== filename));
-    } catch (e) {
+  setFiles((prev) => prev.filter((f) => f.filename !== filename));
+  // Notify sidebar to refresh
+  window.dispatchEvent(new Event("mycloud-files-changed"));
+    } catch {
       setError("Delete failed");
     }
   };
@@ -116,14 +120,14 @@ export default function Dashboard() {
         <h2 className="text-xl font-semibold mb-2">Files</h2>
         <ul className="border rounded divide-y">
           {files.length === 0 && <li className="p-4 text-gray-500">No files uploaded.</li>}
-          {files.map((filename) => (
+          {files.map(({ filename, type }) => (
             <li key={filename} className="flex items-center justify-between p-4">
-              <span>{filename}</span>
+              <span>{filename} <span className="text-xs text-gray-400">[{type}]</span></span>
               <div className="flex gap-2">
                 <a
                   href="#"
-                  onClick={async (e) => {
-                    e.preventDefault();
+                  onClick={async (event) => {
+                    event.preventDefault();
                     setError("");
                     try {
                       const res = await fetch(`${BACKEND_URL}/download/${filename}`, {
@@ -141,7 +145,7 @@ export default function Dashboard() {
                       a.click();
                       a.remove();
                       window.URL.revokeObjectURL(url);
-                    } catch (e) {
+                    } catch {
                       setError("Download failed");
                     }
                   }}

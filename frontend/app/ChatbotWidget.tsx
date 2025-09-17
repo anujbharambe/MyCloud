@@ -1,7 +1,8 @@
 "use client";
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 
 const ChatbotWidget = () => {
+  const [maximized, setMaximized] = useState(false);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   type Message = { from: "user" | "bot"; text: string };
@@ -11,7 +12,11 @@ const ChatbotWidget = () => {
   const [loading, setLoading] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
   const [availableFiles, setAvailableFiles] = useState<string[]>([]);
-  const inputRef = useRef<HTMLDivElement>(null);
+
+  // Remove deleted files from selectedFiles when availableFiles changes
+  useEffect(() => {
+    setSelectedFiles(prev => prev.filter(f => availableFiles.includes(f)));
+  }, [availableFiles]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Scroll to bottom on new message
@@ -35,7 +40,7 @@ const ChatbotWidget = () => {
       });
       const data = await res.json();
       setMessages((msgs) => [...msgs, { from: "bot", text: data.response }]);
-    } catch (err) {
+    } catch {
       setMessages((msgs) => [
         ...msgs,
         { from: "bot", text: "Sorry, something went wrong. Please try again." },
@@ -45,7 +50,7 @@ const ChatbotWidget = () => {
     setLoading(false);
   };
 
-  interface KeyDownEvent extends React.KeyboardEvent<HTMLTextAreaElement> {}
+  type KeyDownEvent = React.KeyboardEvent<HTMLTextAreaElement>;
 
   const handleKeyDown = (e: KeyDownEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -98,21 +103,22 @@ const ChatbotWidget = () => {
         }}
       >
         {open ? (
-          <div
-            style={{
-              width: 380,
-              height: 500,
-              background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-              borderRadius: 20,
-              boxShadow: "0 20px 60px rgba(0, 0, 0, 0.2)",
-              display: "flex",
-              flexDirection: "column",
-              overflow: "hidden",
-              transform: open ? "scale(1)" : "scale(0.8)",
-              opacity: open ? 1 : 0,
-              transition: "all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
-            }}
-          >
+            <div
+              style={{
+                width: 380,
+                height: maximized ? 'calc(100vh - 48px)' : 500,
+                maxHeight: maximized ? 'calc(100vh - 48px)' : 500,
+                background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                borderRadius: 20,
+                boxShadow: "0 20px 60px rgba(0, 0, 0, 0.2)",
+                display: "flex",
+                flexDirection: "column",
+                overflow: "hidden",
+                transform: open ? "scale(1)" : "scale(0.8)",
+                opacity: open ? 1 : 0,
+                transition: "all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
+              }}
+            >
             {/* Header */}
             <div
               style={{
@@ -140,28 +146,53 @@ const ChatbotWidget = () => {
                 />
                 AI Assistant
               </div>
-              <button
-                style={{
-                  background: "rgba(255, 255, 255, 0.1)",
-                  border: "none",
-                  borderRadius: "50%",
-                  width: 32,
-                  height: 32,
-                  color: "white",
-                  cursor: "pointer",
-                  fontSize: "18px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  transition: "background 0.2s ease",
-                }}
-                onClick={() => setOpen(false)}
-                onMouseEnter={(e) => ((e.target as HTMLButtonElement).style.background = "rgba(255, 255, 255, 0.2)")}
-                onMouseLeave={(e) => ((e.target as HTMLButtonElement).style.background = "rgba(255, 255, 255, 0.1)")}
-                aria-label="Close"
-              >
-                ×
-              </button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  style={{
+                    background: maximized ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.1)",
+                    border: "none",
+                    borderRadius: "50%",
+                    width: 32,
+                    height: 32,
+                    color: "white",
+                    cursor: "pointer",
+                    fontSize: "18px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    transition: "background 0.2s ease",
+                  }}
+                  onClick={() => setMaximized(m => !m)}
+                  onMouseEnter={e => ((e.target as HTMLButtonElement).style.background = "rgba(255,255,255,0.2)")}
+                  onMouseLeave={e => ((e.target as HTMLButtonElement).style.background = maximized ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.1)")}
+                  aria-label={maximized ? "Restore" : "Maximize"}
+                  title={maximized ? "Restore" : "Maximize"}
+                >
+                  {maximized ? <span style={{fontSize:20, fontWeight:'bold'}}>&#x25A2;</span> : <span style={{fontSize:20, fontWeight:'bold'}}>&#x25A1;</span>}
+                </button>
+                <button
+                  style={{
+                    background: "rgba(255, 255, 255, 0.1)",
+                    border: "none",
+                    borderRadius: "50%",
+                    width: 32,
+                    height: 32,
+                    color: "white",
+                    cursor: "pointer",
+                    fontSize: "18px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    transition: "background 0.2s ease",
+                  }}
+                  onClick={() => setOpen(false)}
+                  onMouseEnter={(e) => ((e.target as HTMLButtonElement).style.background = "rgba(255, 255, 255, 0.2)")}
+                  onMouseLeave={(e) => ((e.target as HTMLButtonElement).style.background = "rgba(255, 255, 255, 0.1)")}
+                  aria-label="Close"
+                >
+                  ×
+                </button>
+              </div>
             </div>
 
             {/* Messages */}
@@ -265,37 +296,79 @@ const ChatbotWidget = () => {
               }}
             >
               <div style={{ marginBottom: 12 }}>
-                <label style={{ fontWeight: 500, color: '#374151', marginBottom: 4, display: 'block' }}>
+                <label style={{ fontWeight: 500, color: '#374151', marginBottom: 8, display: 'block' }}>
                   Select files for context:
                 </label>
-                <select
-                  multiple
-                  value={selectedFiles}
-                  onChange={e => {
-                    const options = Array.from(e.target.selectedOptions);
-                    setSelectedFiles(options.map(opt => opt.value));
-                  }}
-                  style={{
-                    border: '1px solid #e5e7eb',
-                    borderRadius: 8,
-                    padding: '6px 10px',
-                    width: '100%',
-                    fontSize: 14,
-                    background: 'white',
-                    minHeight: 60,
-                  }}
-                >
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, minHeight: 40 }}>
                   {availableFiles.length === 0 ? (
-                    <option disabled>No files available</option>
+                    <span style={{ color: '#9ca3af', fontSize: 14 }}>No files available</span>
                   ) : (
-                    availableFiles.map(f => (
-                      <option key={f} value={f}>{f}</option>
-                    ))
+                    availableFiles.map(f => {
+                      const selected = selectedFiles.includes(f);
+                      return (
+                        <span
+                          key={f}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            background: selected ? 'linear-gradient(135deg, #667eea, #764ba2)' : '#f3f4f6',
+                            color: selected ? 'white' : '#374151',
+                            borderRadius: 16,
+                            padding: '6px 14px',
+                            fontSize: 14,
+                            fontWeight: 500,
+                            cursor: 'pointer',
+                            boxShadow: selected ? '0 2px 8px rgba(102,126,234,0.15)' : 'none',
+                            border: selected ? '2px solid #667eea' : '1px solid #e5e7eb',
+                            marginRight: 0,
+                            position: 'relative',
+                            transition: 'all 0.2s',
+                          }}
+                          onClick={() => {
+                            if (selected) {
+                              setSelectedFiles(selectedFiles.filter(sf => sf !== f));
+                            } else {
+                              setSelectedFiles([...selectedFiles, f]);
+                            }
+                          }}
+                        >
+                          {f}
+                          {selected && (
+                            <span
+                              style={{
+                                marginLeft: 8,
+                                fontWeight: 'bold',
+                                cursor: 'pointer',
+                                fontSize: 16,
+                                lineHeight: 1,
+                                color: 'white',
+                                background: 'rgba(0,0,0,0.12)',
+                                borderRadius: '50%',
+                                width: 20,
+                                height: 20,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                              }}
+                              onClick={e => {
+                                e.stopPropagation();
+                                setSelectedFiles(selectedFiles.filter(sf => sf !== f));
+                              }}
+                              title="Remove"
+                            >
+                              ×
+                            </span>
+                          )}
+                        </span>
+                      );
+                    })
                   )}
-                </select>
+                </div>
                 {selectedFiles.length > 0 && (
-                  <div style={{ marginTop: 8, fontSize: 13, color: '#667eea' }}>
-                    Selected: {selectedFiles.join(', ')}
+                  <div style={{ marginTop: 8, fontSize: 13, color: '#667eea', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    Selected: {selectedFiles.map(f => (
+                      <span key={f} style={{ background: '#e0e7ff', color: '#3730a3', borderRadius: 12, padding: '2px 10px', fontSize: 13 }}>{f}</span>
+                    ))}
                   </div>
                 )}
               </div>
